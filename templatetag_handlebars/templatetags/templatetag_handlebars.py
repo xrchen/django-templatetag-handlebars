@@ -1,4 +1,5 @@
-from django.conf import settings
+import re
+
 from django import template
 from django.conf import settings
 
@@ -9,8 +10,29 @@ register = template.Library()
 
     Most of this code was written by Miguel Araujo
     https://gist.github.com/893408
-    
+
 """
+
+
+if getattr(settings, 'USE_VAR_INLINE_TRANS', False):
+
+    from django.utils.translation import ugettext as _
+
+    trans_re = re.compile(r'''{%\s*trans\s+['"](.*)['"]\s*%}''')
+
+    def process_content(content):
+        while True:
+            match = trans_re.search(content)
+            if match is None:
+                break
+            content = content[:match.start()] + _(match.group(1)) \
+                + content[match.end():]
+        return content
+
+else:
+
+    process_content = lambda x: x
+
 
 def verbatim_tags(parser, token, endtagname):
     """
@@ -36,7 +58,7 @@ def verbatim_tags(parser, token, endtagname):
 
         if token.token_type == template.TOKEN_VAR:
             text_and_nodes.append('{{')
-            text_and_nodes.append(token.contents)
+            text_and_nodes.append(process_content(token.contents))
 
         elif token.token_type == template.TOKEN_TEXT:
             text_and_nodes.append(token.contents)
